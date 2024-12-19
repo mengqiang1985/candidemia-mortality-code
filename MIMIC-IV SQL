@@ -1,0 +1,252 @@
+1. Candida Dataset and ICU Stay Data
+sql
+-- Create Candida dataset (blood culture positive for Candida)
+CREATE TABLE candidas AS
+SELECT * 
+FROM mimiciv_hosp.microbiologyevents 
+WHERE org_name ILIKE '%andid%' AND spec_type_desc ILIKE 'blood culture';
+
+-- Link ICU stays with Candida dataset
+SELECT *
+FROM mimiciv_icu.icustays
+LEFT JOIN public.candidas USING (hadm_id);
+
+-- Retrieve age and gender from the admissions table
+SELECT *
+FROM mimiciv_derived.age
+LEFT JOIN public.candidas USING (hadm_id);
+________________________________________
+2. Admission Data and First SOFA Score
+sql
+-- Admission data for patients with Candida
+SELECT *
+FROM mimiciv_hosp.admissions
+RIGHT JOIN candidas USING (hadm_id);
+
+-- First-day SOFA score
+SELECT stay_id, subject_id, hadm_id, sofa, respiration, coagulation, liver, cardiovascular, cns, renal
+FROM mimiciv_derived.first_day_sofa
+WHERE stay_id IN (
+    SELECT stay_id 
+    FROM mimiciv_icu.icustays
+    LEFT JOIN candidas USING (hadm_id)
+);
+________________________________________
+3. Lab Results Queries
+Query for Albumin Levels
+sql
+-- Retrieve albumin-related lab items
+SELECT *
+FROM mimiciv_hosp.d_labitems
+WHERE label ILIKE '%Albumin%';
+
+-- Retrieve albumin lab results for Candida patients
+SELECT *
+FROM mimiciv_hosp.labevents
+RIGHT JOIN candidas USING (subject_id)
+WHERE itemid = 50862;
+Query for Lactate Levels
+sql
+-- Retrieve lactate-related lab items
+SELECT *
+FROM mimiciv_hosp.d_labitems
+WHERE label ILIKE '%lactate%';
+
+-- Retrieve lactate lab results for Candida patients
+SELECT *
+FROM mimiciv_hosp.labevents
+RIGHT JOIN candidas USING (subject_id)
+WHERE itemid IN (50813, 52442, 53154);
+________________________________________
+4. Vital Signs and Mortality Data
+sql
+-- Retrieve first-day vital signs for Candida patients
+SELECT *
+FROM mimiciv_derived.first_day_vitalsign
+WHERE stay_id IN (
+    SELECT stay_id 
+    FROM mimiciv_icu.icustays
+    LEFT JOIN candidas USING (hadm_id)
+);
+
+-- Retrieve first 24-hour SOFA score for Candida patients
+SELECT *
+FROM mimiciv_derived.sofa
+LEFT JOIN public.candidas_stay USING (stay_id);
+
+-- Retrieve mortality data for ICU stays
+SELECT *
+FROM mimiciv_derived.icustay_detail AS icu
+LEFT JOIN mimiciv_hosp.admissions AS ad USING (hadm_id);
+________________________________________
+5. ICU Procedures and Invasive Devices
+Invasive Line Placement
+sql
+-- Retrieve invasive line placement data for Candida patients
+SELECT *
+FROM mimiciv_derived.invasive_line
+LEFT JOIN public.candidas_stay USING (stay_id);
+Ventilation Use
+sql
+-- Retrieve ventilation use data for Candida patients
+SELECT *
+FROM mimiciv_derived.ventilation
+LEFT JOIN public.candidas_stay USING (stay_id);
+________________________________________
+6. Comorbidities and Diagnosis Codes
+Hypertension Diagnosis
+sql
+-- Retrieve hypertension diagnosis codes
+SELECT * 
+FROM postgres.mimiciv_hosp.d_icd_diagnoses 
+WHERE long_title ILIKE '%hypertensio%';
+
+-- Retrieve ICD diagnosis codes for hypertension
+SELECT * 
+FROM postgres.mimiciv_hosp.diagnoses_icd 
+WHERE icd_code IN ('4011', '4019', 'I10');
+Chronic Obstructive Pulmonary Disease (COPD)
+sql
+-- Retrieve COPD diagnosis codes
+SELECT * 
+FROM postgres.mimiciv_hosp.d_icd_diagnoses 
+WHERE long_title ILIKE '%obstructiv%';
+
+-- Retrieve ICD diagnosis codes for COPD
+SELECT * 
+FROM postgres.mimiciv_hosp.diagnoses_icd 
+WHERE icd_code IN ('49120', '49121', '49122', 'J440', 'J441', 'J44', 'J449');
+Coronary Artery Disease
+sql
+-- Retrieve coronary artery disease diagnosis codes
+SELECT * 
+FROM postgres.mimiciv_hosp.d_icd_diagnoses 
+WHERE long_title ILIKE '%coronary%' AND icd_code NOT IN (
+    '4111', '41181', '41441', '41412', '4142', 
+    '75685', '9724', 'V4581', 'V4582'
+);
+
+-- Retrieve ICD diagnosis codes for coronary artery disease
+SELECT * 
+FROM postgres.mimiciv_hosp.diagnoses_icd 
+WHERE icd_code IN (
+    SELECT icd_code 
+    FROM postgres.mimiciv_hosp.d_icd_diagnoses 
+    WHERE long_title ILIKE '%coronary%' AND icd_code NOT IN (
+        '4111', '41181', '41441', '41412', '4142', 
+        '75685', '9724', 'V4581', 'V4582'
+    )
+);
+________________________________________
+7. Antifungal Medication
+Fluconazole (Candida)
+sql
+-- Retrieve fluconazole medication records
+SELECT * 
+FROM mimiciv_hosp.pharmacy 
+WHERE medication ILIKE 'fluconazole';
+Voriconazole (Aspergillus)
+sql
+-- Retrieve voriconazole medication records
+SELECT * 
+FROM mimiciv_hosp.pharmacy 
+WHERE medication ILIKE 'voriconazole';
+Caspofungin (Candida)
+sql
+-- Retrieve caspofungin medication records
+SELECT * 
+FROM mimiciv_hosp.pharmacy 
+WHERE medication ILIKE 'caspofungin';
+Posaconazole (Aspergillus)
+sql
+-- Retrieve posaconazole medication records
+SELECT * 
+FROM mimiciv_hosp.pharmacy 
+WHERE medication ILIKE 'posaconazole';
+Amphotericin B
+sql
+-- Retrieve amphotericin B medication records
+SELECT * 
+FROM mimiciv_hosp.pharmacy 
+WHERE medication ILIKE 'amphotericin B';
+________________________________________
+8. Key Scores and Indicators
+Charlson Comorbidity Index
+sql
+-- Retrieve Charlson comorbidity index scores
+SELECT *
+FROM mimiciv_derived.charlson
+LEFT JOIN public.candidas_stay 
+USING (hadm_id);
+Logistic Organ Dysfunction Score (LODS)
+sql
+-- Retrieve LODS scores
+SELECT *
+FROM mimiciv_derived.lods 
+LEFT JOIN public.candidas_stay 
+USING (stay_id)
+WHERE stay_id IN (
+    SELECT stay_id 
+    FROM mimiciv_icu.icustays
+    LEFT JOIN candidas USING (hadm_id)
+);
+Coagulation and Cardiac Markers
+sql
+-- Retrieve coagulation data
+SELECT *
+FROM mimiciv_derived.coagulation 
+LEFT JOIN public.candidas_stay 
+USING (hadm_id);
+
+-- Retrieve cardiac marker data (including BNP)
+SELECT *
+FROM mimiciv_derived.cardiac_marker
+LEFT JOIN public.candidas_stay 
+USING (hadm_id);
+________________________________________
+9. Blood Gas Analysis and Additional Parameters
+Blood Gas (ABG)
+sql
+-- Retrieve blood gas (ABG) results for Candida patients
+SELECT *
+FROM mimiciv_derived.bg 
+LEFT JOIN public.candidas USING (hadm_id);
+Glucose
+sql
+-- Retrieve glucose lab results for Candida patients
+SELECT *
+FROM mimiciv_hosp.labevents
+RIGHT JOIN public.candidas 
+USING (subject_id)
+WHERE itemid IN (50809, 50931);
+pH
+sql
+-- Retrieve pH levels from lab results
+SELECT *
+FROM mimiciv_hosp.labevents
+RIGHT JOIN public.candidas 
+USING (subject_id)
+WHERE itemid = 50820;
+PO2 and FiO2
+sql
+-- Retrieve PO2 and FiO2 levels
+SELECT *
+FROM mimiciv_hosp.labevents
+WHERE itemid IN (50821, 50816);
+________________________________________
+10. Additional Data Sources
+Ventilator Settings and Support
+sql
+-- Retrieve ventilator support settings for Candida patients
+SELECT *
+FROM mimiciv_icu.ventilator_support
+RIGHT JOIN public.candidas_stay 
+USING (stay_id);
+Renal Replacement Therapy (RRT)
+sql
+-- Retrieve RRT (dialysis) data for Candida patients
+SELECT *
+FROM mimiciv_icu.rrt
+RIGHT JOIN public.candidas_stay 
+USING (stay_id);
+
