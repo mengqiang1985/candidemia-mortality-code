@@ -1,0 +1,201 @@
+# Set seed for reproducibility(LR, SVM, RF, XGBoost)
+set.seed(123)
+
+# Split data into training (70%) and test (30%) sets
+train_index <- sample(1:nrow(model_msofa), nrow(model_msofa) * 0.7)
+msofa_train <- model_msofa[train_index, ]
+msofa_test <- model_msofa[-train_index, ]
+msofa_train <- mutate(msofa_train, group = "train")
+msofa_test <- mutate(msofa_test, group = "test")
+
+# Load necessary libraries
+library(dplyr)
+library(data.table)
+library(caTools)
+library(pROC)
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(e1071)
+library(xgboost)
+
+# Logistic Regression Model
+form_msofa1 <- hospital_expire_flag ~ res_score + coagulation + cardiovascular + 
+                albumin_score + lac_score + bun_score
+
+# Train logistic regression model
+msofa_log1 <- glm(form_msofa1, data = msofa_train, family = binomial)
+
+# Predict on the test set
+msofa_test$pred_log1 <- predict(msofa_log1, newdata = msofa_test, type = "response")
+
+# Convert predictions to binary class based on 0.5 threshold
+threshold <- 0.5
+msofa_predicted_classes <- ifelse(msofa_test$pred_log1 >= threshold, 1, 0)
+
+# Calculate ROC curve and AUC for logistic regression
+roc_msofa_log <- roc(msofa_test$hospital_expire_flag ~ msofa_test$pred_log1, data = msofa_test, smooth = FALSE)
+auc_msofa_log <- auc(roc_msofa_log)
+
+# Random Forest Model
+X_train_msofa <- msofa_train[, c(2:5, 13, 14)]  # Selecting relevant features
+y_train_msofa <- msofa_train$hospital_expire_flag
+
+# Train Random Forest model
+rf_msofa <- randomForest(x = X_train_msofa, y = y_train_msofa, ntree = 100)
+
+# Hyperparameter tuning for Random Forest
+ctrl <- trainControl(method = "cv", number = 5)
+grid <- expand.grid(mtry = c(2, 4, 6))  # mtry for feature selection
+rf_msofa_tune <- train(x = X_train_msofa, y = y_train_msofa, method = "rf", trControl = ctrl, tuneGrid = grid)
+
+# Train Random Forest model with tuned parameters
+final_rf_msofa <- randomForest(x = X_train_msofa, y = y_train_msofa, mtry = 4, ntree = 100)
+
+# Predictions and AUC calculation for Random Forest
+msofa_test_predictions_rf <- predict(final_rf_msofa, newdata = msofa_test, type = "prob")
+roc_msofa_rf <- roc(msofa_test$hospital_expire_flag, msofa_test_predictions_rf[, 2])
+auc_msofa_rf <- auc(roc_msofa_rf)
+
+# Support Vector Machine Model (SVM)
+X_train_msofa_svm <- msofa_train[, c(3, 4, 6, 7, 8, 9:11)]  # Feature selection for SVM
+y_train_msofa_svm <- msofa_train$hospital_expire_flag
+
+# Train SVM model
+svm_msofa <- svm(x = X_train_msofa_svm, y = y_train_msofa_svm, probability = TRUE)
+
+# Hyperparameter tuning for SVM
+param_grid_svm <- expand.grid(sigma = c(0.1, 1, 10), C = c(0.1, 1, 10))
+ctrl_svm <- trainControl(method = "cv", number = 10)
+tuned_svm <- train(x = X_train_msofa_svm, y = y_train_msofa_svm, method = "svmRadial", 
+                   tuneGrid = param_grid_svm, trControl = ctrl_svm)
+
+# Train final SVM model
+svm_final_msofa <- svm(x = X_train_msofa_svm, y = y_train_msofa_svm, 
+                       gamma = 0.1, cost = 1, probability = TRUE)
+
+# Predict and calculate AUC for SVM
+msofa_test_probabilities_svm <- predict(svm_final_msofa, newdata = msofa_test, probability = TRUE)
+roc_msofa_svm <- roc(msofa_test$hospital_expire_flag, msofa_test_probabilities_svm[, 2])
+auc_msofa_svm <- auc(roc_msofa_svm)
+
+# XGBoost Model
+X_train_msofa_xgb <- msofa_train[, c(2:5, 13, 14)]  # Selecting relevant features
+y_train_msofa_xgb <- msofa_train$hospital_expire_flag
+
+# Convert data to DMatrix format
+dtrain_msofa_XGB <- xgb.DMatrix(data = as.matrix(X_train_msofa_xgb), label = y_train_msofa_xgb)
+
+# Set parameters for XGBoost
+params_xgb <- list(objective = "binary:logistic", eval_metric = "logloss", eta = 0.1, max_depth = 3)
+
+# Train XGBoost model
+msofa_xgb <- xgboost(params = params_xgb, data = dtrain_msofa_XGB, nrounds = 100)
+
+# Predict and calculate AUC for XGBoost
+msofa_test_probabilities_xgb <- predict(msofa_xgb, newdata = as.matrix(msofa_test[, c(2:5, 13, 14)]))
+roc_msofa_xgb <- roc(msofa_test$hospital_expire_flag, msofa_test_probabilities_xgb)
+auc_msofa_xgb <- auc(roc_msofa_xgb)
+
+# Print AUC results for all models
+cat("AUC for Logistic Regression:", auc_msofa_log, "\n")
+cat("AUC for Random Forest:", auc_msofa_rf, "\n")
+cat("AUC for SVM:", auc_msofa_svm, "\n")
+cat("AUC for XGBoost:", auc_msofa_xgb, "\n")
+
+R Code for Survival Analysis with Kaplan-Meier Curves
+# Load necessary libraries
+library(lubridate)
+library(survival)
+library(dplyr)
+library(foreign)
+
+# Preview survival data
+str(survival_test)
+names(survival_test)
+
+# Extract relevant columns for survival analysis
+survival_data <- survival_test[, c(4, 9:14, 16:22)]
+str(survival_data)
+
+# Convert chartdate and deathtime columns to datetime format
+survival_data$survival_time <- difftime(date(ymd_hms(survival_data$deathtime)), 
+                                         date(ymd_hms(survival_data$chartdate)), 
+                                         units = "days")
+
+# Convert survival_time to numeric
+survival_data$survival_time <- as.numeric(survival_data$survival_time)
+
+# Handle survival time (truncate to 30 days if greater, and set NA to 30)
+survival_data$survival_time[which(survival_data$survival_time > 30)] <- 30
+survival_data$survival_time[is.na(survival_data$survival_time)] <- 30
+
+# Calculate survival status (0 = alive, 1 = dead)
+survival_data$status <- ifelse(survival_data$survival_time >= 30, 0, 1)
+
+# Display structure of survival data
+str(survival_data)
+
+# Create SOFA group: 0 = SOFA <= 8, 1 = SOFA > 8
+survival_data$sofa_group <- ifelse(survival_data$sofa <= 8, 0, 1)
+
+# Convert status and sofa_group to factors for modeling
+survival_data$status <- factor(survival_data$status, levels = c(0, 1), labels = c("survival", "death"))
+survival_data$sofa_group <- factor(survival_data$sofa_group)
+
+# Create MSOFA score by summing individual variables
+survival_data <- survival_data %>%
+  mutate(msofa = res_score + coagulation + cardiovascular + 
+           albumin_score + lac_score + bun_score)
+
+# Create MSOFA group: 0 = mSOFA <= 13, 1 = mSOFA > 13
+survival_data$msofa_group <- ifelse(survival_data$msofa <= 13, 0, 1)
+
+# Convert msofa_group to a factor for modeling
+survival_data$msofa_group <- factor(survival_data$msofa_group, levels = c(0, 1), labels = c("low", "high"))
+
+# Display summary of the survival data
+summary(survival_data)
+
+# Kaplan-Meier survival analysis for MSOFA groups
+surv.msofa <- survfit(Surv(survival_time, status == 1) ~ msofa_group, data = survival_data)
+
+# Plot the survival curves
+# Plot for SOFA groups
+plot(surv.sofa, col = c("blue", "red"), main = "Kaplan-Meier Survival Curve by SOFA Group", 
+     xlab = "Survival Time (days)", ylab = "Survival Probability", 
+     lwd = 2, lty = 1:2)
+legend("topright", legend = c("Low SOFA", "High SOFA"), col = c("blue", "red"), lty = 1:2, lwd = 2)
+
+# Plot for MSOFA groups
+plot(surv.msofa, col = c("green", "orange"), main = "Kaplan-Meier Survival Curve by MSOFA Group", 
+     xlab = "Survival Time (days)", ylab = "Survival Probability", 
+     lwd = 2, lty = 1:2)
+legend("topright", legend = c("Low MSOFA", "High MSOFA"), col = c("green", "orange"), lty = 1:2, lwd = 2)
+
+R Code for Decision Curve Analysis (DCA)
+# Load required libraries
+library(dplyr)
+library(rms) # For decision_curve function (assumed to be from 'rms' package)
+
+# Ensure the hospital_expire_flag column is numeric
+msofa_train$hospital_expire_flag <- as.numeric(as.character(msofa_train$hospital_expire_flag))
+
+# Define the formula for the best model (replace 'form.best2' with the actual model formula)
+form.best2 <- hospital_expire_flag ~ res_score + coagulation + cardiovascular +
+  albumin_score + lac_score + bun_score
+
+# Perform Decision Curve Analysis (DCA)
+# The decision_curve function calculates net benefit across different thresholds
+DCA2_log_test <- decision_curve(
+  form.best2,                              # Formula for the best model
+  data = msofa_test,                       # Test dataset
+  family = "binomial",                     # Binomial family for logistic regression models
+  thresholds = seq(0, 1, by = 0.01),       # Range of threshold probabilities to test
+  confidence.intervals = 0.95,              # Confidence intervals for net benefit estimates
+  study.design = 'cohort',                 # Study design type
+  bootstraps = 1000                         # Number of bootstrap resamples for error estimation
+)
+
+# Output the results of the Decision Curve Analysis
+print(DCA2_log_test)
