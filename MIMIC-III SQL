@@ -1,0 +1,289 @@
+-- 1. Query for Candida blood culture results
+CREATE TABLE candidas_iii AS
+SELECT * FROM "public".microbiologyevents 
+WHERE org_name ILIKE '%andid%' 
+  AND spec_type_desc ILIKE 'blood culture';
+
+-- 2. Retrieve ICU stay information
+CREATE TABLE icustay_id AS
+SELECT icustay_id FROM "public".icustays
+RIGHT JOIN candidas_iii USING (hadm_id);
+
+-- 3. Retrieve patient demographic information
+SELECT * 
+FROM "public".patients
+RIGHT JOIN candidas_iii USING (subject_id);
+
+-- 4. Retrieve hospital admission information
+SELECT * 
+FROM "public".admissions
+RIGHT JOIN candidas_iii USING (hadm_id);
+
+-- 5. Retrieve ICU admission time
+SELECT * 
+FROM icustays
+RIGHT JOIN candidas_iii USING (hadm_id);
+
+-- 6. Retrieve SOFA score data
+SELECT * 
+FROM mimiciii_derived.sofa
+RIGHT JOIN candidas_iii USING (hadm_id);
+
+-- 7. Retrieve vital signs on the first day
+SELECT * 
+FROM mimiciii_derived.vitals_first_day
+RIGHT JOIN candidas_iii USING (hadm_id);
+
+-- 8. Retrieve blood gas results on the first day
+SELECT * 
+FROM mimiciii_derived.blood_gas_first_day_arterial
+RIGHT JOIN candidas_iii USING (hadm_id);
+
+-- 9. Retrieve laboratory results on the first day
+SELECT * 
+FROM mimiciii_derived.labs_first_day
+RIGHT JOIN candidas_iii USING (hadm_id);
+
+-- 10. Find PCT itemid in the lab items table
+SELECT * 
+FROM mimiciii."public".d_labitems 
+WHERE label ILIKE '%C%';
+
+-- 11. Retrieve PCT laboratory data
+SELECT * 
+FROM "public".labevents 
+RIGHT JOIN candidas_iii USING (hadm_id)
+WHERE labevents.itemid = 50889;
+
+-- 12. Retrieve Voriconazole prescription data
+SELECT * 
+FROM mimiciii."public".prescriptions  
+RIGHT JOIN "public".icustay_id
+USING (icustay_id)
+WHERE drug ILIKE '%oriconazol%';
+
+-- 13. Retrieve Caspofungin prescription data
+SELECT * 
+FROM mimiciii."public".prescriptions  
+RIGHT JOIN "public".icustay_id
+USING (icustay_id)
+WHERE drug ILIKE '%caspofungin%';
+
+-- 14. Retrieve Posaconazole prescription data
+SELECT * 
+FROM mimiciii."public".prescriptions  
+RIGHT JOIN "public".icustay_id
+USING (icustay_id)
+WHERE drug ILIKE '%posaconazole%';
+
+-- 15. Retrieve Fluconazole prescription data
+SELECT * 
+FROM mimiciii."public".prescriptions  
+RIGHT JOIN "public".icustay_id
+USING (icustay_id)
+WHERE drug ILIKE '%fluconazole%';
+
+-- 16. Retrieve Amphotericin B prescription data
+SELECT * 
+FROM mimiciii."public".prescriptions  
+RIGHT JOIN "public".icustay_id
+USING (icustay_id)
+WHERE drug ILIKE '%amphotericin%';
+
+-- 17. Retrieve Length of Stay (LOS) data
+SELECT * 
+FROM mimiciii_derived.lods
+RIGHT JOIN "public".icustay_id
+USING (icustay_id);
+
+-- 18. Retrieve blood gas results
+SELECT * 
+FROM "public".blood_gas
+RIGHT JOIN candidas_iii USING (hadm_id);
+
+-- 19. Retrieve albumin data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%Albumin%';
+
+-- 20. Retrieve albumin lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 50862;
+
+-- 21. Retrieve lactate data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%lactate%';
+
+-- 22. Retrieve lactate lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 50813 OR itemid = 52442 OR itemid = 53154;
+
+-- 23. Retrieve bicarbonate data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%bicarbonate%';
+
+-- 24. Retrieve bicarbonate lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 50882 OR itemid = 50803;
+
+-- 25. Retrieve white blood cell count data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%white%';
+
+-- 26. Retrieve white blood cell lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 51301;
+
+-- 27. Retrieve platelet count data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%platelet%';
+
+-- 28. Retrieve platelet lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 51265;
+
+-- 29. Retrieve hemoglobin data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%hemoglobin%';
+
+-- 30. Retrieve hemoglobin lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 50811 OR itemid = 51222;
+
+-- 31. Retrieve ALT data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%alt%';
+
+-- 32. Retrieve ALT lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 50861;
+
+-- 33. Retrieve AST data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%ast%';
+
+-- 34. Retrieve AST lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 50878;
+
+-- 35. Retrieve glucose data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%glucose%';
+
+-- 36. Retrieve glucose lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 50931;
+
+-- 37. Retrieve bilirubin data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%bilirubin%';
+
+-- 38. Retrieve bilirubin lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (subject_id)
+WHERE itemid = 50885;
+
+-- 39. Retrieve BUN data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%urea nitrogen%';
+
+-- 40. Retrieve BUN lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (hadm_id)
+WHERE itemid = 51006;
+
+-- 41. Retrieve creatinine data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%creatinine%';
+
+-- 42. Retrieve creatinine lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (hadm_id)
+WHERE itemid = 50912;
+
+-- 43. Retrieve calcium data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%calcium%';
+
+-- 44. Retrieve calcium lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (hadm_id)
+WHERE itemid = 50893;
+
+-- 45. Retrieve sodium data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%sodium%';
+
+-- 46. Retrieve sodium lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (hadm_id)
+WHERE itemid = 50983;
+
+-- 47. Retrieve potassium data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%potassium%';
+
+-- 48. Retrieve potassium lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (hadm_id)
+WHERE itemid = 50971;
+
+-- 49. Retrieve fibrinogen data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%fibrinogen%';
+
+-- 50. Retrieve fibrinogen lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (hadm_id)
+WHERE itemid = 51214;
+
+-- 51. Retrieve INR data from lab items
+SELECT * 
+FROM "public".d_labitems 
+WHERE label ILIKE '%inr%';
+
+-- 52. Retrieve INR lab data
+SELECT * 
+FROM "public".labevents
+RIGHT JOIN candidas_iii USING (hadm_id)
+WHERE itemid = 50903;
